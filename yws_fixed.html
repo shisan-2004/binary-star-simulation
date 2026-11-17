@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Star System Time Period & Orbital Mechanics Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0b0f19',
+                        panelBg: '#111827',
+                        borderCol: '#1f2937'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: ui-sans-serif, system-ui, sans-serif; }
+        input[type="range"] { accent-color: #3b82f6; cursor: pointer; }
+        input[type="number"] { background: #1f2937; border: 1px solid #374151; color: white; border-radius: 0.375rem; padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+        input[type="number"]:focus { outline: none; border-color: #3b82f6; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    </style>
+
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            }
+        };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Top Header -->
+    <header class="bg-panelBg border-b border-borderCol px-6 py-3 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
+            <h1 class="text-lg font-bold tracking-wide text-white">Binary Star System Time Period Simulator</h1>
+        </div>
+        <div class="flex items-center space-x-4 text-xs text-gray-400">
+            <span>Based on Classical Mechanics ($m_A r_A = m_B r_B$)</span>
+            <span class="bg-blue-900/50 text-blue-300 px-2.5 py-1 rounded border border-blue-700/50 font-mono">Kepler's Third Law Verification</span>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Canvas Workspace -->
+        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden min-h-[450px]">
+            <canvas id="simCanvas" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+            
+            <!-- Canvas Overlay Badge -->
+            <div class="absolute top-4 left-4 bg-panelBg/80 backdrop-blur-md border border-borderCol rounded-lg p-3 text-xs space-y-1 shadow-lg pointer-events-none">
+                <div class="font-semibold text-gray-200 border-b border-gray-700 pb-1 mb-1">Live Simulation HUD</div>
+                <div class="flex justify-between space-x-6"><span class="text-gray-400">Elapsed Time ($t$):</span> <span id="hudTime" class="font-mono text-white">0.00 yrs</span></div>
+                <div class="flex justify-between space-x-6"><span class="text-gray-400">Sim Period ($T_{\text{sim}}$):</span> <span id="hudSimPeriod" class="font-mono text-blue-400">--</span></div>
+                <div class="flex justify-between space-x-6"><span class="text-gray-400">Separation ($L$):</span> <span id="hudL" class="font-mono text-white">--</span></div>
+            </div>
+
+            <!-- Canvas Quick Controls -->
+            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-panelBg/90 backdrop-blur-md border border-borderCol rounded-xl px-4 py-2 flex items-center space-x-3 shadow-xl">
+                <button id="btnPlay" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition shadow">Pause</button>
+                <button id="btnReset" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">Reset</button>
+                <div class="h-4 w-px bg-gray-700"></div>
+                <button id="btnStep" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg text-xs font-medium transition">+1 Step</button>
+                <div class="h-4 w-px bg-gray-700"></div>
+                <label class="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="chkVectors" checked class="rounded bg-gray-800 border-gray-700">
+                    <span>Show Radii & Force ($r_A, r_B, L$)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Sidebar Workbench -->
+        <aside class="w-full lg:w-[440px] bg-panelBg border-l border-borderCol flex flex-col h-auto lg:h-[calc(100vh-57px)] overflow-y-auto p-5 space-y-5">
+            
+            <!-- Reference Formulas Card -->
+            <div class="bg-gray-900/80 border border-gray-800 rounded-xl p-4 space-y-3">
+                <div class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Reference Image Formulas</span>
+                    <span class="text-[10px] text-gray-500 font-mono">Two-Body Mechanics</span>
+                </div>
+                <div class="text-xs space-y-2 text-gray-300 font-mono">
+                    <div class="bg-black/40 p-2 rounded border border-gray-800 text-center">
+                        $m_A r_A = m_B r_B \quad \text{and} \quad L = r_A + r_B$
+                    </div>
+                    <div class="bg-black/40 p-2 rounded border border-gray-800 text-center text-blue-300">
+                        $\omega = \sqrt{\frac{G(m_A + m_B)}{L^3}}$
+                    </div>
+                    <div class="bg-black/40 p-2 rounded border border-gray-800 text-center text-emerald-300">
+                        $T = 2\pi\sqrt{\frac{L^3}{G(m_A + m_B)}}$
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameters Sliders Card -->
+            <div class="space-y-4">
+                <div class="text-xs font-bold text-gray-200 uppercase tracking-wider">System Parameters</div>
+
+                <!-- Mass A ($m_A$) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-300 font-medium">Mass A ($m_A$)</span>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="numMa" step="0.1" min="0.1" max="50" value="2.0" class="w-16 text-right font-mono">
+                            <span class="text-gray-500">$M_\odot$</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rangeMa" min="0.1" max="50" step="0.1" value="2.0" class="w-full">
+                </div>
+
+                <!-- Mass B ($m_B$) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-300 font-medium">Mass B ($m_B$)</span>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="numMb" step="0.1" min="0.1" max="50" value="1.0" class="w-16 text-right font-mono">
+                            <span class="text-gray-500">$M_\odot$</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rangeMb" min="0.1" max="50" step="0.1" value="1.0" class="w-full">
+                </div>
+
+                <!-- Total Separation ($L$) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-300 font-medium">Total Separation ($L$)</span>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="numL" step="0.1" min="1.0" max="20.0" value="4.0" class="w-16 text-right font-mono">
+                            <span class="text-gray-500">AU</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rangeL" min="1.0" max="20.0" step="0.1" value="4.0" class="w-full">
+                </div>
+
+                <!-- Gravitational Constant Scale -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-300 font-medium">Gravitational Constant ($G_{\text{scale}}$)</span>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="numG" step="0.5" min="1" max="50" value="10" class="w-16 text-right font-mono">
+                            <span class="text-gray-500">x</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rangeG" min="1" max="50" step="0.5" value="10" class="w-full">
+                    <p class="text-[10px] text-gray-500 italic">Scaled up for convenient visual orbital periods in simulation units.</p>
+                </div>
+            </div>
+
+            <hr class="border-borderCol">
+
+            <!-- Calculated Physics Verification Card -->
+            <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3">
+                <div class="text-xs font-bold text-gray-200 uppercase tracking-wider">Exact Analytical Calculations</div>
+                
+                <div class="space-y-2 text-xs font-mono">
+                    <div class="flex justify-between py-1 border-b border-gray-800">
+                        <span class="text-gray-400">Radial Arm $r_A$:</span>
+                        <span id="calcRa" class="text-amber-400">--</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-800">
+                        <span class="text-gray-400">Radial Arm $r_B$:</span>
+                        <span id="calcRb" class="text-purple-400">--</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-800">
+                        <span class="text-gray-400">Moment Balance ($m_A r_A = m_B r_B$):</span>
+                        <span id="calcMoment" class="text-emerald-400">--</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-800">
+                        <span class="text-gray-400">Angular Velocity ($\omega$):</span>
+                        <span id="calcOmega" class="text-blue-400">--</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="text-gray-400">Time Period ($T$):</span>
+                        <span id="calcPeriod" class="text-green-400 font-bold">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Force Balance Check Card -->
+            <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-2">
+                <div class="text-xs font-bold text-gray-200 uppercase tracking-wider">Force Equilibrium Check</div>
+                <div class="text-[11px] text-gray-400 space-y-1">
+                    <p>$\frac{G m_A m_B}{L^2} = m_A \omega^2 r_A = m_B \omega^2 r_B$</p>
+                    <div class="flex justify-between pt-2 font-mono text-xs">
+                        <span class="text-gray-300">Gravitational ($F_g$):</span>
+                        <span id="valFg" class="text-blue-300">--</span>
+                    </div>
+                    <div class="flex justify-between font-mono text-xs">
+                        <span class="text-gray-300">Centripetal ($F_{c,A}$):</span>
+                        <span id="valFcA" class="text-amber-300">--</span>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Simulation Engine Script -->
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const numMa = document.getElementById('numMa');
+        const rangeMa = document.getElementById('rangeMa');
+        const numMb = document.getElementById('numMb');
+        const rangeMb = document.getElementById('rangeMb');
+        const numL = document.getElementById('numL');
+        const rangeL = document.getElementById('rangeL');
+        const numG = document.getElementById('numG');
+        const rangeG = document.getElementById('rangeG');
+
+        const btnPlay = document.getElementById('btnPlay');
+        const btnReset = document.getElementById('btnReset');
+        const btnStep = document.getElementById('btnStep');
+        const chkVectors = document.getElementById('chkVectors');
+
+        const hudTime = document.getElementById('hudTime');
+        const hudSimPeriod = document.getElementById('hudSimPeriod');
+        const hudL = document.getElementById('hudL');
+
+        const calcRa = document.getElementById('calcRa');
+        const calcRb = document.getElementById('calcRb');
+        const calcMoment = document.getElementById('calcMoment');
+        const calcOmega = document.getElementById('calcOmega');
+        const calcPeriod = document.getElementById('calcPeriod');
+        const valFg = document.getElementById('valFg');
+        const valFcA = document.getElementById('valFcA');
+
+        // Simulation State
+        let isRunning = true;
+        let time = 0;
+        let scale = 90; // pixels per AU
+        let centerX = 0, centerY = 0;
+
+        // Constants & Parameters
+        let G_base = 39.4784; // (2*pi)^2 in AU^3 / (M_sun * yr^2) standard units approx
+        let G_sim = G_base * 10;
+
+        let state = {
+            mA: 2.0,
+            mB: 1.0,
+            L: 4.0,
+            xA: 0, yA: 0, vxA: 0, vyA: 0,
+            xB: 0, yB: 0, vxB: 0, vyB: 0
+        };
+
+        function initSystem(resetTime = true) {
+            state.mA = parseFloat(rangeMa.value);
+            state.mB = parseFloat(rangeMb.value);
+            state.L = parseFloat(rangeL.value);
+            G_sim = G_base * parseFloat(rangeG.value);
+
+            let mA = state.mA;
+            let mB = state.mB;
+            let L = state.L;
+
+            // Exact formulas from reference image
+            let rA = (mB / (mA + mB)) * L;
+            let rB = (mA / (mA + mB)) * L;
+
+            let omega = Math.sqrt((G_sim * (mA + mB)) / Math.pow(L, 3));
+
+            state.xA = -rA; state.yA = 0;
+            state.xB = rB;  state.yB = 0;
+
+            state.vxA = 0; state.vyA = -omega * rA;
+            state.vxB = 0; state.vyB = omega * rB;
+
+            if (resetTime) time = 0;
+            updateCalculations();
+        }
+
+        function updateCalculations() {
+            let mA = state.mA;
+            let mB = state.mB;
+            let L = state.L;
+
+            let rA = (mB / (mA + mB)) * L;
+            let rB = (mA / (mA + mB)) * L;
+            let momentA = mA * rA;
+            let momentB = mB * rB;
+
+            let omega = Math.sqrt((G_sim * (mA + mB)) / Math.pow(L, 3));
+            let T = (2 * Math.PI) / omega;
+
+            let F_g = (G_sim * mA * mB) / Math.pow(L, 2);
+            let F_cA = mA * Math.pow(omega, 2) * rA;
+
+            calcRa.textContent = `${rA.toFixed(3)} AU`;
+            calcRb.textContent = `${rB.toFixed(3)} AU`;
+            calcMoment.textContent = `${momentA.toFixed(2)} = ${momentB.toFixed(2)}`;
+            calcOmega.textContent = `${omega.toFixed(3)} rad/yr`;
+            calcPeriod.textContent = `${T.toFixed(3)} yrs`;
+
+            valFg.textContent = `${F_g.toFixed(2)} units`;
+            valFcA.textContent = `${F_cA.toFixed(2)} units`;
+
+            hudSimPeriod.textContent = `${T.toFixed(2)} yrs`;
+            hudL.textContent = `${L.toFixed(2)} AU`;
+        }
+
+        function syncInputs(source) {
+            if (source === 'maRange') { numMa.value = rangeMa.value; }
+            else if (source === 'maNum') { rangeMa.value = numMa.value; }
+            else if (source === 'mbRange') { numMb.value = rangeMb.value; }
+            else if (source === 'mbNum') { rangeMb.value = numMb.value; }
+            else if (source === 'lRange') { numL.value = rangeL.value; }
+            else if (source === 'lNum') { rangeL.value = numL.value; }
+            else if (source === 'gRange') { numG.value = rangeG.value; }
+            else if (source === 'gNum') { rangeG.value = numG.value; }
+
+            initSystem(true);
+        }
+
+        rangeMa.addEventListener('input', () => syncInputs('maRange'));
+        numMa.addEventListener('input', () => syncInputs('maNum'));
+        rangeMb.addEventListener('input', () => syncInputs('mbRange'));
+        numMb.addEventListener('input', () => syncInputs('mbNum'));
+        rangeL.addEventListener('input', () => syncInputs('lRange'));
+        numL.addEventListener('input', () => syncInputs('lNum'));
+        rangeG.addEventListener('input', () => syncInputs('gRange'));
+        numG.addEventListener('input', () => syncInputs('gNum'));
+
+        btnPlay.addEventListener('click', () => {
+            isRunning = !isRunning;
+            btnPlay.textContent = isRunning ? 'Pause' : 'Play';
+            btnPlay.className = isRunning ? 'bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition shadow' : 'bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition shadow';
+        });
+
+        btnReset.addEventListener('click', () => initSystem(true));
+        btnStep.addEventListener('click', () => {
+            if (!isRunning) updatePhysics(0.005);
+        });
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            centerX = canvas.width / 2;
+            centerY = canvas.height / 2;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function updatePhysics(dt) {
+            let mA = state.mA;
+            let mB = state.mB;
+
+            let dx = state.xB - state.xA;
+            let dy = state.yB - state.yA;
+            let distSq = dx*dx + dy*dy;
+            let dist = Math.sqrt(distSq);
+
+            if (dist < 0.1) dist = 0.1;
+
+            let fMag = (G_sim * mA * mB) / distSq;
+            let fx = fMag * (dx / dist);
+            let fy = fMag * (dy / dist);
+
+            let axA = fx / mA;
+            let ayA = fy / mA;
+            let axB = -fx / mB;
+            let ayB = -fy / mB;
+
+            state.vxA += axA * dt;
+            state.vyA += ayA * dt;
+            state.vxB += axB * dt;
+            state.vyB += ayB * dt;
+
+            state.xA += state.vxA * dt;
+            state.yA += state.vyA * dt;
+            state.xB += state.vxB * dt;
+            state.yB += state.vyB * dt;
+
+            time += dt;
+            hudTime.textContent = `${time.toFixed(2)} yrs`;
+        }
+
+        function draw() {
+            if (isRunning) {
+                for (let i = 0; i < 5; i++) {
+                    updatePhysics(0.002);
+                }
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = '#111827';
+            ctx.lineWidth = 1;
+            let gridSize = scale;
+            let offsetX = centerX % gridSize;
+            let offsetY = centerY % gridSize;
+
+            ctx.beginPath();
+            for (let x = offsetX; x < canvas.width; x += gridSize) {
+                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+            }
+            for (let y = offsetY; y < canvas.height; y += gridSize) {
+                ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            let screenAx = centerX + state.xA * scale;
+            let screenAy = centerY + state.yA * scale;
+            let screenBx = centerX + state.xB * scale;
+            let screenBy = centerY + state.yB * scale;
+
+            let comX = centerX + ((state.mA * state.xA + state.mB * state.xB) / (state.mA + state.mB)) * scale;
+            let comY = centerY + ((state.mA * state.yA + state.mB * state.yB) / (state.mA + state.mB)) * scale;
+
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(comX, comY, 6, 0, Math.PI * 2);
+            ctx.moveTo(comX - 10, comY); ctx.lineTo(comX + 10, comY);
+            ctx.moveTo(comX, comY - 10); ctx.lineTo(comX, comY + 10);
+            ctx.stroke();
+            ctx.fillStyle = '#60a5fa';
+            ctx.font = '10px sans-serif';
+            ctx.fillText('COM (Barycenter)', comX + 12, comY - 4);
+
+            if (chkVectors.checked) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(screenAx, screenAy);
+                ctx.lineTo(screenBx, screenBy);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(comX, comY);
+                ctx.lineTo(screenAx, screenAy);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#a855f7';
+                ctx.beginPath();
+                ctx.moveTo(comX, comY);
+                ctx.lineTo(screenBx, screenBy);
+                ctx.stroke();
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillText('r_A', (comX + screenAx)/2 - 10, (comY + screenAy)/2 - 10);
+                ctx.fillStyle = '#a855f7';
+                ctx.fillText('r_B', (comX + screenBx)/2 + 10, (comY + screenBy)/2 + 10);
+            }
+
+            let radiusA = Math.max(8, Math.min(24, Math.cbrt(state.mA) * 12));
+            let gradA = ctx.createRadialGradient(screenAx, screenAy, 2, screenAx, screenAy, radiusA);
+            gradA.addColorStop(0, '#ffffff');
+            gradA.addColorStop(0.3, '#f59e0b');
+            gradA.addColorStop(1, 'rgba(245, 158, 11, 0)');
+
+            ctx.fillStyle = gradA;
+            ctx.beginPath();
+            ctx.arc(screenAx, screenAy, radiusA * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(screenAx, screenAy, radiusA, 0, Math.PI * 2);
+            ctx.fill();
+
+            let radiusB = Math.max(6, Math.min(20, Math.cbrt(state.mB) * 12));
+            let gradB = ctx.createRadialGradient(screenBx, screenBy, 2, screenBx, screenBy, radiusB);
+            gradB.addColorStop(0, '#ffffff');
+            gradB.addColorStop(0.3, '#3b82f6');
+            gradB.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+            ctx.fillStyle = gradB;
+            ctx.beginPath();
+            ctx.arc(screenBx, screenBy, radiusB * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.arc(screenBx, screenBy, radiusB, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText(`Star A (${state.mA} M☉)`, screenAx + radiusA + 6, screenAy - 6);
+            ctx.fillText(`Star B (${state.mB} M☉)`, screenBx + radiusB + 6, screenBy - 6);
+
+            requestAnimationFrame(draw);
+        }
+
+        initSystem(true);
+        requestAnimationFrame(draw);
+    </script>
+</body>
+</html>
